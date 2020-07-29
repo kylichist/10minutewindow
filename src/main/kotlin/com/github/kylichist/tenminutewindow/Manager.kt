@@ -8,11 +8,14 @@ class Manager(
     var onNext: (Message) -> Unit,
     var onFirst: (Message) -> Unit,
     var autoRefresh: Boolean,
-    var autoExtend: Boolean,
     var refreshPeriod: Long
 ) {
     private val cookies = initCookies()
     var mailbox = initMailbox()
+
+    init {
+
+    }
 
     fun refreshMailboxState(): Mailbox {
         val currentMailbox = initMailbox()
@@ -65,6 +68,13 @@ class Manager(
         return currentMailbox.also { mailbox = it }
     }
 
+    fun extend(): Mailbox {
+        Jsoup.connect(MAILBOX_EXTEND)
+            .cookies(cookies)
+            .execute()
+        return refreshMailboxState()
+    }
+
     private fun initMailbox(): Mailbox {
         val body = Jsoup.connect(MAILBOX_INFO)
             .cookies(cookies)
@@ -98,25 +108,21 @@ class Manager(
         fun single(
             onFirst: (Message) -> Unit,
             autoRefresh: Boolean = DEFAULT_AUTO_REFRESH_VALUE,
-            autoExtend: Boolean = DEFAULT_AUTO_EXTEND_VALUE,
             refreshPeriod: Long = DEFAULT_REFRESH_PERIOD_VALUE
         ):
                 Manager = Manager(
             onNext = {}, onFirst = onFirst,
-            autoRefresh = autoRefresh, autoExtend = autoExtend,
-            refreshPeriod = refreshPeriod
+            autoRefresh = autoRefresh, refreshPeriod = refreshPeriod
         )
 
         fun common(
             onNext: (Message) -> Unit,
             autoRefresh: Boolean = DEFAULT_AUTO_REFRESH_VALUE,
-            autoExtend: Boolean = DEFAULT_AUTO_EXTEND_VALUE,
             refreshPeriod: Long = DEFAULT_REFRESH_PERIOD_VALUE
         ):
                 Manager = Manager(
             onNext = onNext, onFirst = {},
-            autoRefresh = autoRefresh, autoExtend = autoExtend,
-            refreshPeriod = refreshPeriod
+            autoRefresh = autoRefresh, refreshPeriod = refreshPeriod
         )
     }
 }
