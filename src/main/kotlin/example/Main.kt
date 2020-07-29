@@ -4,10 +4,9 @@ import com.github.kylichist.tenminutewindow.Manager
 
 fun main() {
     val manager = Manager(
-        autoExtend = true,
-        autoRefresh = true,
-        refreshPeriod = 10000
+        onNew = {
+            println(it.toString())
+        }
     )
-    println(manager.mailbox.address)
-    println(manager.mailbox.millisecondsLeft)
+    manager.refreshMailboxState()
 }
