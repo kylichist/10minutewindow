@@ -3,6 +3,8 @@ package com.github.kylichist.tenminutewindow
 import com.github.kylichist.tenminutewindow.data.*
 import com.github.kylichist.tenminutewindow.util.*
 import org.jsoup.Jsoup
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class Manager(
     var onNext: (Message) -> Unit,
@@ -14,23 +16,51 @@ class Manager(
     var mailbox = initMailbox()
 
     init {
-
+        if (autoRefresh) {
+            val refresher = Executors.newSingleThreadScheduledExecutor()
+            refresher.scheduleAtFixedRate({
+                refreshMailboxState()
+            }, 0, refreshPeriod, TimeUnit.MILLISECONDS)
+        }
     }
-
+    @Suppress("MemberVisibilityCanBePrivate")
     fun refreshMailboxState(): Mailbox {
         val currentMailbox = initMailbox()
         val messages = mailbox.messages
         val elements = Jsoup.connect(MESSAGES)
             .cookies(cookies)
+            .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36")
             .get()
             .select("tbody")
-            .select("tr:gt(1)")
-        for (element in elements) {
+
+        println(elements.toString() + "\n")
+
+        println("gt(0)")
+        println(elements.select("tr:gt(0)"))
+        println("\n")
+
+        println("gt(1)")
+        println(elements.select("tr:gt(1)"))
+        println("\n")
+
+        println("lt(0)")
+        println(elements.select("tr:lt(0)"))
+        println("\n")
+
+        println("lt(1)")
+        println(elements.select("tr:gt(0)"))
+        println("\n")
+
+        println("\n\n\n\n\n")
+        println(elements.select("tr:eq(1)"))
+
+        /*for (element in elements) {
             val mid = element.attr("onclick")
                 .substringFrom("?mid=")
                 .cut("'")
             val document = Jsoup.connect(MESSAGE_INFO + mid)
                 .cookies(cookies)
+                .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36")
                 .get()
                 .body()
             val mailHeader = document.select("div.mail_header")
@@ -64,13 +94,14 @@ class Manager(
                 if (messages.isEmpty()) onFirst(message)
                 currentMailbox.messages.add(message)
             }
-        }
+        }*/
         return currentMailbox.also { mailbox = it }
     }
 
     fun extend(): Mailbox {
         Jsoup.connect(MAILBOX_EXTEND)
             .cookies(cookies)
+            .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36")
             .execute()
         return refreshMailboxState()
     }
@@ -78,6 +109,7 @@ class Manager(
     private fun initMailbox(): Mailbox {
         val body = Jsoup.connect(MAILBOX_INFO)
             .cookies(cookies)
+            .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36")
             .get()
             .body()
             .toString()
@@ -101,6 +133,7 @@ class Manager(
 
     private fun initCookies():
             Map<String, String> = Jsoup.connect(MAILBOX_CREATE)
+        .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36")
         .execute()
         .cookies()
 
