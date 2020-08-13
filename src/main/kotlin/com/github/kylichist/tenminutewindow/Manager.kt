@@ -4,158 +4,120 @@ import com.github.kylichist.tenminutewindow.data.*
 import com.github.kylichist.tenminutewindow.util.*
 import org.jsoup.Jsoup
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
-class Manager(
-    var onNext: (Message) -> Unit,
-    var onFirst: (Message) -> Unit,
-    var autoRefresh: Boolean,
-    var refreshPeriod: Long
+class Manager private constructor(
+    autoRefresh: Boolean,
+    refreshPeriod: Long,
+    val onFirstUpdate: (Message) -> Unit,
+    val onUpdate: (Message) -> Unit
 ) {
-    private val cookies = initCookies()
+    private val cookies = Jsoup.connect(MAILBOX_CREATE)
+        .execute()
+        .cookies()
+
+    @Suppress("MemberVisibilityCanBePrivate")
     var mailbox = initMailbox()
 
     init {
-        if (autoRefresh) {
-            val refresher = Executors.newSingleThreadScheduledExecutor()
-            refresher.scheduleAtFixedRate({
-                refreshMailboxState()
-            }, 0, refreshPeriod, TimeUnit.MILLISECONDS)
-        }
+        if (autoRefresh) Executors.newSingleThreadScheduledExecutor()
+            .scheduleEvery(refreshPeriod.atLeast()) { refreshMailboxState() }
     }
+
     @Suppress("MemberVisibilityCanBePrivate")
     fun refreshMailboxState(): Mailbox {
         val currentMailbox = initMailbox()
-        val messages = mailbox.messages
-        val elements = Jsoup.connect(MESSAGES)
+        //TODO: table query is like gt(0) && lt(size - 1)
+        for (element in Jsoup.connect(MESSAGES)
             .cookies(cookies)
-            .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36")
             .get()
-            .select("tbody")
-
-        println(elements.toString() + "\n")
-
-        println("gt(0)")
-        println(elements.select("tr:gt(0)"))
-        println("\n")
-
-        println("gt(1)")
-        println(elements.select("tr:gt(1)"))
-        println("\n")
-
-        println("lt(0)")
-        println(elements.select("tr:lt(0)"))
-        println("\n")
-
-        println("lt(1)")
-        println(elements.select("tr:gt(0)"))
-        println("\n")
-
-        println("\n\n\n\n\n")
-        println(elements.select("tr:eq(1)"))
-
-        /*for (element in elements) {
-            val mid = element.attr("onclick")
-                .substringFrom("?mid=")
-                .cut("'")
-            val document = Jsoup.connect(MESSAGE_INFO + mid)
-                .cookies(cookies)
-                .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36")
-                .get()
-                .body()
-            val mailHeader = document.select("div.mail_header")
-            val subject = mailHeader.select("h2.emoji_parse")
-                .text()
-            val mailInfo = mailHeader.select("div.mail_headerinfo")
-            val fromInfo = mailInfo.select("span.mail_from")
-                .text()
-            val name = fromInfo.substringTo(" (")
-            val from = fromInfo.substringFrom(" (")
-                .cut(")")
-            val date = mailHeader.select("[title]")
-                .attr("title")
-            val text = document.select("div.mailinhtml")
-                .html()
-            //parse attachments
-            val attachments = mailHeader.select("div.mail_att")
-                .select("a")
-            val message = Message(from, subject, name, date, text, mid)
-            if (attachments.isNotEmpty()) {
-                val attachmentsList = mutableListOf<Attachment>()
-                for (attachment in attachments) {
-                    val link = BASE + attachment.attr("href")
-                    val title = attachment.attr("title")
-                    attachmentsList.add(Attachment(link, title))
+            .select(MESSAGES_TABLE)) {
+            //TODO: add table query
+            val mid = element.attr(MID_ATTR)
+                .substringFrom(MID_START)
+                .drop()
+            with(
+                Jsoup.connect(MESSAGE_INFO + mid)
+                    .cookies(cookies)
+                    .get()
+                    .body()
+            ) {
+                val text = select(TEXT_QUERY)
+                    .html()
+                with(select(MAIL_HEADER)) {
+                    val subject = select(SUBJECT_QUERY)
+                        .text()
+                    val (name, from) = selectAuthor()
+                        .text()
+                        .split(AUTHOR_INFO_DELIMITER)
+                    val date = selectDate()
+                    val attachments = selectAttachments()
+                    var attachmentList: AttachmentList? = null
+                    if (attachments.isNotEmpty()) {
+                        attachmentList = mutableListOf()
+                        for (attachment in attachments) with(attachment) {
+                            attachmentList.add(
+                                Attachment(
+                                    BASE + attr(ATT_LINK_ATTR),
+                                    attr(ATT_TITLE_ATTR)
+                                )
+                            )
+                        }
+                    }
+                    val message = Message(
+                        from.drop(), subject, name,
+                        date, text, mid, attachmentList
+                    )
+                    if (message !in mailbox.messages) {
+                        onUpdate(message)
+                        if (isEmpty()) onFirstUpdate(message)
+                        currentMailbox.messages.add(message)
+                    }
                 }
-                message.attachments = attachmentsList
             }
-            if (message !in messages) {
-                onNext(message)
-                if (messages.isEmpty()) onFirst(message)
-                currentMailbox.messages.add(message)
-            }
-        }*/
+        }
         return currentMailbox.also { mailbox = it }
     }
 
+    @Suppress("unused")
     fun extend(): Mailbox {
         Jsoup.connect(MAILBOX_EXTEND)
             .cookies(cookies)
-            .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36")
             .execute()
         return refreshMailboxState()
     }
 
-    private fun initMailbox(): Mailbox {
-        val body = Jsoup.connect(MAILBOX_INFO)
-            .cookies(cookies)
-            .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36")
-            .get()
-            .body()
-            .toString()
-        val json = body.between(
-            "var permalink = '",
-            "';if(localStorgeSupportCheck()"
-        )
-            .decode()
-            .replace()
-            .toJSON()
-        val time = body.between(
-            "var today = new Date();var tt = ",
-            ";var time = today.getTime();"
-        ).toLong() * 1000
-        val email = json.getString("mail")
-        val host = json.getString("host")
-        val link = json.getString("url")
-        val key = json.getString("key")
-        return Mailbox(email, time, host, link, key)
-    }
+    private fun initMailbox(): Mailbox =
+        with(
+            Jsoup.connect(MAILBOX_INFO)
+                .cookies(cookies)
+                .get()
+                .body()
+                .toString()
+        ) {
+            val time = between(TIME_START, TIME_END)
+                .toLong() * 1000
+            with(
+                between(JSON_START, JSON_END)
+                    .decode()
+                    .replace()
+                    .toJSON()
+            ) {
+                return Mailbox(
+                    getString(MAIL_KEY), time,
+                    getString(HOST_KEY),
+                    getString(URL_KEY),
+                    getString(KEY_KEY)
+                )
+            }
+        }
 
-    private fun initCookies():
-            Map<String, String> = Jsoup.connect(MAILBOX_CREATE)
-        .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36")
-        .execute()
-        .cookies()
+    companion object Builder {
+        var autoRefresh = DEFAULT_AUTO_REFRESH_VALUE
+        var refreshPeriod = MINIMUM_AUTO_REFRESH_PERIOD_VALUE
+        var onFirstUpdate: (Message) -> Unit = {}
+        var onUpdate: (Message) -> Unit = {}
 
-    companion object {
-        fun single(
-            onFirst: (Message) -> Unit,
-            autoRefresh: Boolean = DEFAULT_AUTO_REFRESH_VALUE,
-            refreshPeriod: Long = DEFAULT_REFRESH_PERIOD_VALUE
-        ):
-                Manager = Manager(
-            onNext = {}, onFirst = onFirst,
-            autoRefresh = autoRefresh, refreshPeriod = refreshPeriod
-        )
-
-        fun common(
-            onNext: (Message) -> Unit,
-            autoRefresh: Boolean = DEFAULT_AUTO_REFRESH_VALUE,
-            refreshPeriod: Long = DEFAULT_REFRESH_PERIOD_VALUE
-        ):
-                Manager = Manager(
-            onNext = onNext, onFirst = {},
-            autoRefresh = autoRefresh, refreshPeriod = refreshPeriod
-        )
+        @Suppress("unused")
+        fun build() = Manager(autoRefresh, refreshPeriod, onFirstUpdate, onUpdate)
     }
 }
