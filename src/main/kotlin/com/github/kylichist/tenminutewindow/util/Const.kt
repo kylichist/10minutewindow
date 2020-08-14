@@ -5,6 +5,9 @@ package com.github.kylichist.tenminutewindow.util
 import com.github.kylichist.tenminutewindow.data.Attachment
 import com.github.kylichist.tenminutewindow.data.Message
 
+typealias AttachmentList = MutableList<Attachment>
+typealias MessageList = MutableList<Message>
+
 const val MAILBOX_INFO = "https://10minutemail.net/"
 const val MAILBOX_CREATE = "https://10minutemail.net/new.html"
 const val MAILBOX_EXTEND = "https://10minutemail.net/more100.html"
@@ -13,7 +16,7 @@ const val MESSAGE_INFO = "https://10minutemail.net/readmail.html?mid="
 const val BASE = "https://10minutemail.net/"
 
 const val DEFAULT_AUTO_REFRESH_VALUE = true
-const val MINIMUM_AUTO_REFRESH_PERIOD_VALUE: Long = 10000
+const val MINIMUM_AUTO_REFRESH_PERIOD_VALUE: Long = 15000
 
 internal const val MESSAGES_TABLE = "tbody"
 internal const val MID_ATTR = "onclick"
@@ -30,6 +33,8 @@ internal const val ATTACHMENTS_QUERY = "div.mail_att"
 internal const val ATTACHMENTS_ATTR = "a"
 internal const val ATT_LINK_ATTR = "href"
 internal const val ATT_TITLE_ATTR = "title"
+internal const val MESSAGES_FIRST_QUERY = "tr:gt(0)"
+internal const val MESSAGES_SECOND_QUERY = "tr:not(:last-child)"
 internal const val MAIL_KEY = "mail"
 internal const val HOST_KEY = "host"
 internal const val URL_KEY = "url"
@@ -39,6 +44,3 @@ internal const val TIME_START = "var today = new Date();var tt = "
 internal const val TIME_END = ";var time = today.getTime();"
 internal const val JSON_START = "var permalink = '"
 internal const val JSON_END = "';if(localStorgeSupportCheck()"
-
-typealias AttachmentList = MutableList<Attachment>
-typealias MessageList = MutableList<Message>

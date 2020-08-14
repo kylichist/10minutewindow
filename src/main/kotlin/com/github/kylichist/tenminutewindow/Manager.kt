@@ -25,13 +25,20 @@ class Manager private constructor(
 
     @Suppress("MemberVisibilityCanBePrivate")
     fun refreshMailboxState(): Mailbox {
+        println("refresh")
         val currentMailbox = initMailbox()
-        //TODO: table query is like gt(0) && lt(size - 1)
-        for (element in Jsoup.connect(MESSAGES)
+        val elements = Jsoup.connect(MESSAGES)
             .cookies(cookies)
             .get()
-            .select(MESSAGES_TABLE)) {
-            //TODO: add table query
+            .selectMessages()
+        //println(elements.toString())
+        println(currentMailbox.address)
+        println(currentMailbox.host)
+        println(currentMailbox.key)
+        println(currentMailbox.link)
+        println(currentMailbox.millisecondsLeft)
+
+        for (element in elements) {
             val mid = element.attr(MID_ATTR)
                 .substringFrom(MID_START)
                 .drop()
@@ -42,7 +49,7 @@ class Manager private constructor(
                     .body()
             ) {
                 val text = select(TEXT_QUERY)
-                    .html()
+                    .text()
                 with(select(MAIL_HEADER)) {
                     val subject = select(SUBJECT_QUERY)
                         .text()
@@ -67,10 +74,12 @@ class Manager private constructor(
                         from.drop(), subject, name,
                         date, text, mid, attachmentList
                     )
-                    if (message !in mailbox.messages) {
-                        onUpdate(message)
-                        if (isEmpty()) onFirstUpdate(message)
-                        currentMailbox.messages.add(message)
+                    with(mailbox) {
+                        if (message !in messages) {
+                            onUpdate(message)
+                            if (isEmpty()) onFirstUpdate(message)
+                            currentMailbox.messages.add(message)
+                        }
                     }
                 }
             }
